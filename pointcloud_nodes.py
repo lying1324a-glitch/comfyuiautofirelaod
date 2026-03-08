@@ -4,11 +4,6 @@ from typing import Tuple
 import numpy as np
 
 try:
-    import torch
-except Exception:  # pragma: no cover
-    torch = None
-
-try:
     import open3d as o3d
 except Exception:  # pragma: no cover
     o3d = None
@@ -162,6 +157,8 @@ class MeshToPointCloud:
         if self._is_empty_mesh(tri_mesh):
             raise ValueError("Input mesh is empty (no vertices or no triangles), cannot sample point cloud.")
 
+    def convert(self, mesh, sample_points: int, use_poisson_disk: bool):
+        tri_mesh = _PointCloudUtils.to_triangle_mesh(mesh)
         if use_poisson_disk:
             pcd = tri_mesh.sample_points_poisson_disk(number_of_points=sample_points)
         else:
