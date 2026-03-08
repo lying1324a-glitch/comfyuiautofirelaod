@@ -4,11 +4,6 @@ from typing import Tuple
 import numpy as np
 
 try:
-    import torch
-except Exception:  # pragma: no cover
-    torch = None
-
-try:
     import open3d as o3d
 except Exception:  # pragma: no cover
     o3d = None
@@ -28,23 +23,13 @@ class _PointCloudUtils:
         if isinstance(mesh, o3d.geometry.TriangleMesh):
             return mesh
 
-        # ComfyUI or generic python object with mesh-like attributes
-        if hasattr(mesh, "vertices") and (hasattr(mesh, "triangles") or hasattr(mesh, "faces")):
-            vertices = _PointCloudUtils._to_numpy(getattr(mesh, "vertices"))
-            triangles = _PointCloudUtils._to_numpy(
-                getattr(mesh, "triangles", None) if hasattr(mesh, "triangles") else getattr(mesh, "faces")
-            )
-            return _PointCloudUtils._build_triangle_mesh(vertices, triangles)
-
         if isinstance(mesh, dict) and "vertices" in mesh and "triangles" in mesh:
-            vertices = _PointCloudUtils._to_numpy(mesh["vertices"])
-            triangles = _PointCloudUtils._to_numpy(mesh["triangles"])
-            return _PointCloudUtils._build_triangle_mesh(vertices, triangles)
-
-        if isinstance(mesh, dict) and "verts" in mesh and ("faces" in mesh or "triangles" in mesh):
-            vertices = _PointCloudUtils._to_numpy(mesh["verts"])
-            triangles = _PointCloudUtils._to_numpy(mesh.get("triangles", mesh.get("faces")))
-            return _PointCloudUtils._build_triangle_mesh(vertices, triangles)
+            vertices = np.asarray(mesh["vertices"], dtype=np.float64)
+            triangles = np.asarray(mesh["triangles"], dtype=np.int32)
+            out = o3d.geometry.TriangleMesh()
+            out.vertices = o3d.utility.Vector3dVector(vertices)
+            out.triangles = o3d.utility.Vector3iVector(triangles)
+            return out
 
         raise TypeError(
             "Unsupported mesh input. Expected open3d.geometry.TriangleMesh or dict with vertices/triangles."
@@ -63,70 +48,17 @@ class _PointCloudUtils:
             out.points = o3d.utility.Vector3dVector(point_cloud.astype(np.float64))
             return out
 
-        if hasattr(point_cloud, "points"):
-            pts = _PointCloudUtils._to_numpy(getattr(point_cloud, "points"))
-            return _PointCloudUtils._build_point_cloud(pts)
-
         if isinstance(point_cloud, dict) and "points" in point_cloud:
-            pts = _PointCloudUtils._to_numpy(point_cloud["points"])
-            return _PointCloudUtils._build_point_cloud(pts)
-
-        if isinstance(point_cloud, dict) and "xyz" in point_cloud:
-            pts = _PointCloudUtils._to_numpy(point_cloud["xyz"])
-            return _PointCloudUtils._build_point_cloud(pts)
+            pts = np.asarray(point_cloud["points"], dtype=np.float64)
+            if pts.ndim != 2 or pts.shape[1] != 3:
+                raise ValueError("point_cloud['points'] must have shape (N, 3).")
+            out = o3d.geometry.PointCloud()
+            out.points = o3d.utility.Vector3dVector(pts)
+            return out
 
         raise TypeError(
             "Unsupported point cloud input. Expected open3d.geometry.PointCloud, ndarray (N,3), or dict with points."
         )
-
-    @staticmethod
-    def _to_numpy(value):
-        if torch is not None and isinstance(value, torch.Tensor):
-            return value.detach().cpu().numpy()
-        return np.asarray(value)
-
-    @staticmethod
-    def _unwrap_batch(arr: np.ndarray, name: str) -> np.ndarray:
-        arr = np.asarray(arr)
-        if arr.ndim == 3 and arr.shape[0] == 1:
-            return arr[0]
-        if arr.ndim == 3 and arr.shape[-1] in (3, 4):
-            return arr[0]
-        if arr.ndim == 2:
-            return arr
-        raise ValueError(f"{name} should be shape (N, C) or (1, N, C), got {arr.shape}.")
-
-    @staticmethod
-    def _build_triangle_mesh(vertices, triangles):
-        vertices = _PointCloudUtils._unwrap_batch(_PointCloudUtils._to_numpy(vertices), "vertices")
-        triangles = _PointCloudUtils._unwrap_batch(_PointCloudUtils._to_numpy(triangles), "triangles")
-
-        if vertices.shape[1] > 3:
-            vertices = vertices[:, :3]
-        if triangles.shape[1] > 3:
-            triangles = triangles[:, :3]
-
-        if vertices.shape[1] != 3:
-            raise ValueError(f"Mesh vertices must have 3 columns, got {vertices.shape}.")
-        if triangles.shape[1] != 3:
-            raise ValueError(f"Mesh triangles/faces must have 3 columns, got {triangles.shape}.")
-
-        out = o3d.geometry.TriangleMesh()
-        out.vertices = o3d.utility.Vector3dVector(vertices.astype(np.float64))
-        out.triangles = o3d.utility.Vector3iVector(triangles.astype(np.int32))
-        return out
-
-    @staticmethod
-    def _build_point_cloud(points):
-        points = _PointCloudUtils._unwrap_batch(_PointCloudUtils._to_numpy(points), "points")
-        if points.shape[1] > 3:
-            points = points[:, :3]
-        if points.shape[1] != 3:
-            raise ValueError(f"Point cloud points must have 3 columns, got {points.shape}.")
-
-        out = o3d.geometry.PointCloud()
-        out.points = o3d.utility.Vector3dVector(points.astype(np.float64))
-        return out
 
 
 class MeshToPointCloud:
