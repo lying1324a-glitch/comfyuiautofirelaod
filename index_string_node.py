@@ -2,7 +2,7 @@ from typing import Optional, Tuple
 
 
 class StringIndexValue:
-    """Return character at a given index from an input string."""
+    """Split comma-separated text and return the item at the given index."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -27,7 +27,7 @@ class StringIndexValue:
         index: int,
         index_input: Optional[int] = None,
     ) -> Tuple[str, bool, str]:
-        text = str(value)
+        text = str(value).strip()
         actual_index = index_input if index_input is not None else index
 
         if len(text) == 0:
@@ -35,15 +35,17 @@ class StringIndexValue:
             print(status)
             return "", False, status
 
-        if actual_index < -len(text) or actual_index >= len(text):
+        items = [item.strip() for item in text.split(",")]
+
+        if actual_index < -len(items) or actual_index >= len(items):
             status = (
-                f"索引越界: index={actual_index}, 字符串长度={len(text)}，"
-                f"合法范围=[{-len(text)}, {len(text) - 1}]"
+                f"索引越界: index={actual_index}, 分割后数量={len(items)}，"
+                f"合法范围=[{-len(items)}, {len(items) - 1}]"
             )
             print(status)
             return "", False, status
 
-        output = text[actual_index]
+        output = items[actual_index]
         status = f"取值成功: index={actual_index}, output={output}"
         print(status)
         return output, True, status
