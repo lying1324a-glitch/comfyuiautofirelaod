@@ -1,5 +1,4 @@
 import os
-from datetime import datetime
 from typing import List, Tuple
 import ast
 import json
@@ -80,6 +79,14 @@ class SaveAttributesToExcel:
         return os.path.abspath("outputs")
 
     @staticmethod
+    def _resolve_output_path(output_dir: str, filename_prefix: str) -> str:
+        safe_output_dir = SaveAttributesToExcel._resolve_output_dir(output_dir)
+        os.makedirs(safe_output_dir, exist_ok=True)
+
+        safe_prefix = (filename_prefix or "attributes").strip() or "attributes"
+        return os.path.join(safe_output_dir, f"{safe_prefix}.xlsx")
+
+    @staticmethod
     def _build_save_hint(xlsx_path: str) -> str:
         output_dir = os.path.dirname(xlsx_path)
         return f"Excel 已保存到: {xlsx_path}（目录: {output_dir}）"
@@ -95,24 +102,24 @@ class SaveAttributesToExcel:
         filename_prefix: str = "attributes",
     ) -> Tuple[str, str]:
         try:
-            from openpyxl import Workbook
+            from openpyxl import Workbook, load_workbook
         except Exception as exc:
             raise RuntimeError(
                 "需要 openpyxl 才能导出 .xlsx 文件，请在 ComfyUI 环境中安装：pip install openpyxl"
             ) from exc
 
-        safe_output_dir = self._resolve_output_dir(output_dir)
-        os.makedirs(safe_output_dir, exist_ok=True)
+        out_path = self._resolve_output_path(output_dir, filename_prefix)
 
-        safe_prefix = (filename_prefix or "attributes").strip() or "attributes"
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_path = os.path.join(safe_output_dir, f"{safe_prefix}_{timestamp}.xlsx")
-
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "data"
-
-        ws.append(["label", "material", "length", "width", "height"])
+        if os.path.exists(out_path):
+            wb = load_workbook(out_path)
+            ws = wb.active
+            if ws.max_row < 1:
+                ws.append(["label", "material", "length", "width", "height"])
+        else:
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "data"
+            ws.append(["label", "material", "length", "width", "height"])
 
         for label_item in self._split_label_items(label):
             ws.append([label_item, material, length, width, height])
