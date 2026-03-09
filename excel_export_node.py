@@ -1,6 +1,8 @@
 import os
 from datetime import datetime
 from typing import List, Tuple
+import ast
+import json
 
 try:
     import folder_paths
@@ -41,7 +43,27 @@ class SaveAttributesToExcel:
     def _split_label_items(label: str) -> List[str]:
         if label is None:
             return []
-        return list(str(label))
+
+        # 支持列表输入（真实 list）
+        if isinstance(label, (list, tuple)):
+            return [str(item) for item in label]
+
+        text = str(label).strip()
+        if not text:
+            return []
+
+        # 支持形如: ["suitcase", "bag"] 的字符串
+        if text.startswith("[") and text.endswith("]"):
+            for parser in (json.loads, ast.literal_eval):
+                try:
+                    parsed = parser(text)
+                    if isinstance(parsed, (list, tuple)):
+                        return [str(item) for item in parsed]
+                except Exception:
+                    continue
+
+        # 兜底：普通字符串作为一个整体单元格
+        return [text]
 
     @staticmethod
     def _resolve_output_dir(output_dir: str) -> str:
@@ -90,7 +112,7 @@ class SaveAttributesToExcel:
         ws = wb.active
         ws.title = "data"
 
-        ws.append(["标签", "材质", "长", "宽", "高"])
+        ws.append(["label", "material", "length", "width", "height"])
 
         for label_item in self._split_label_items(label):
             ws.append([label_item, material, length, width, height])
