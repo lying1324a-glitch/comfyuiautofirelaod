@@ -43,26 +43,24 @@ class SaveAttributesToExcel:
         if label is None:
             return []
 
-        # 支持列表输入（真实 list）
         if isinstance(label, (list, tuple)):
-            return [str(item) for item in label]
+            return [str(item).strip() for item in label if str(item).strip()]
 
         text = str(label).strip()
         if not text:
             return []
 
-        # 支持形如: ["suitcase", "bag"] 的字符串
         if text.startswith("[") and text.endswith("]"):
             for parser in (json.loads, ast.literal_eval):
                 try:
                     parsed = parser(text)
                     if isinstance(parsed, (list, tuple)):
-                        return [str(item) for item in parsed]
+                        return [str(item).strip() for item in parsed if str(item).strip()]
                 except Exception:
                     continue
 
-        # 兜底：普通字符串作为一个整体单元格
         return [text]
+
 
     @staticmethod
     def _resolve_output_dir(output_dir: str) -> str:
