@@ -14,6 +14,18 @@ except Exception:  # pragma: no cover
     o3d = None
 
 
+
+
+class ComfyMeshData:
+    """Simple mesh container compatible with ComfyUI-style mesh consumers."""
+
+    def __init__(self, vertices: np.ndarray, faces: np.ndarray):
+        self.vertices = np.asarray(vertices, dtype=np.float32)
+        self.faces = np.asarray(faces, dtype=np.int32)
+        # alias for compatibility
+        self.triangles = self.faces
+
+
 class _PointCloudUtils:
     @staticmethod
     def _ensure_open3d():
@@ -467,7 +479,9 @@ class PointCloudToMesh:
         if len(mesh.vertices) == 0 or len(mesh.triangles) == 0:
             raise ValueError("Failed to reconstruct a valid mesh from the point cloud.")
 
-        return (mesh,)
+        vertices = np.asarray(mesh.vertices, dtype=np.float32)
+        faces = np.asarray(mesh.triangles, dtype=np.int32)
+        return (ComfyMeshData(vertices=vertices, faces=faces),)
 
 
 class PointCloudBoundingBoxSize:
