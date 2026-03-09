@@ -16,12 +16,49 @@ except Exception:  # pragma: no cover
 
 
 
+class _ArrayTensorLike:
+    """Minimal tensor-like wrapper for environments without torch."""
+
+    def __init__(self, array):
+        self._array = np.asarray(array)
+
+    def __getitem__(self, item):
+        return _ArrayTensorLike(self._array[item])
+
+    @property
+    def shape(self):
+        return self._array.shape
+
+    def cpu(self):
+        return self
+
+    def numpy(self):
+        return self._array
+
+
 class ComfyMeshData:
-    """Simple mesh container compatible with ComfyUI-style mesh consumers."""
+    """Mesh container compatible with ComfyUI mesh consumers.
+
+    Expected access pattern in downstream nodes:
+    `mesh.vertices[i].cpu().numpy()` and `mesh.faces[i].cpu().numpy()`.
+    """
 
     def __init__(self, vertices: np.ndarray, faces: np.ndarray):
-        self.vertices = np.asarray(vertices, dtype=np.float32)
-        self.faces = np.asarray(faces, dtype=np.int32)
+        v = np.asarray(vertices, dtype=np.float32)
+        f = np.asarray(faces, dtype=np.int64)
+
+        if v.ndim == 2:
+            v = v[None, ...]
+        if f.ndim == 2:
+            f = f[None, ...]
+
+        if torch is not None:
+            self.vertices = torch.from_numpy(v)
+            self.faces = torch.from_numpy(f)
+        else:  # pragma: no cover
+            self.vertices = _ArrayTensorLike(v)
+            self.faces = _ArrayTensorLike(f)
+
         # alias for compatibility
         self.triangles = self.faces
 
