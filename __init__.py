@@ -34,3 +34,5 @@ _register_node(
 _register_node("folder_to_batch_image_node", "FolderToBatchImage", "Folder To Batch Image")
 _register_node("excel_export_node", "SaveAttributesToExcel", "Save Attributes To Excel")
 _register_node("string_buffer_node", "FillStringUntilFull", "Fill String Until Full")
+
+_register_node("index_string_node", "StringIndexValue", "String Index Value")
