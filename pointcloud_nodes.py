@@ -4,6 +4,11 @@ from typing import Tuple
 import numpy as np
 
 try:
+    import torch
+except Exception:  # pragma: no cover
+    torch = None
+
+try:
     import open3d as o3d
 except Exception:  # pragma: no cover
     o3d = None
@@ -23,27 +28,12 @@ class _PointCloudUtils:
         if isinstance(mesh, o3d.geometry.TriangleMesh):
             return mesh
 
-        # ComfyUI or generic python object with mesh-like attributes
-        if hasattr(mesh, "vertices") and (hasattr(mesh, "triangles") or hasattr(mesh, "faces")):
-            vertices = _PointCloudUtils._to_numpy(getattr(mesh, "vertices"))
-            triangles = _PointCloudUtils._to_numpy(
-                getattr(mesh, "triangles", None) if hasattr(mesh, "triangles") else getattr(mesh, "faces")
+        vertices, triangles = _PointCloudUtils._extract_mesh_components(mesh)
+        if vertices is None or triangles is None:
+            raise TypeError(
+                "Unsupported mesh input. Expected Open3D TriangleMesh or object/dict containing vertices+faces/triangles."
             )
-            return _PointCloudUtils._build_triangle_mesh(vertices, triangles)
-
-        if isinstance(mesh, dict) and "vertices" in mesh and "triangles" in mesh:
-            vertices = _PointCloudUtils._to_numpy(mesh["vertices"])
-            triangles = _PointCloudUtils._to_numpy(mesh["triangles"])
-            return _PointCloudUtils._build_triangle_mesh(vertices, triangles)
-
-        if isinstance(mesh, dict) and "verts" in mesh and ("faces" in mesh or "triangles" in mesh):
-            vertices = _PointCloudUtils._to_numpy(mesh["verts"])
-            triangles = _PointCloudUtils._to_numpy(mesh.get("triangles", mesh.get("faces")))
-            return _PointCloudUtils._build_triangle_mesh(vertices, triangles)
-
-        raise TypeError(
-            "Unsupported mesh input. Expected open3d.geometry.TriangleMesh or dict with vertices/triangles."
-        )
+        return _PointCloudUtils._build_triangle_mesh(vertices, triangles)
 
     @staticmethod
     def to_point_cloud(point_cloud):
@@ -73,6 +63,48 @@ class _PointCloudUtils:
         raise TypeError(
             "Unsupported point cloud input. Expected open3d.geometry.PointCloud, ndarray (N,3), or dict with points."
         )
+
+
+    @staticmethod
+    def _extract_mesh_components(mesh):
+        def pick_from_dict(d):
+            vertex_keys = ("vertices", "verts", "v", "vertex", "pos", "positions")
+            face_keys = ("triangles", "faces", "f", "indices", "face")
+            vv = next((d[k] for k in vertex_keys if k in d), None)
+            ff = next((d[k] for k in face_keys if k in d), None)
+            if vv is not None and ff is not None:
+                return vv, ff
+            return None, None
+
+        # Dict-like inputs
+        if isinstance(mesh, dict):
+            vv, ff = pick_from_dict(mesh)
+            if vv is not None:
+                return vv, ff
+
+        # Common attribute names on custom objects
+        attr_vertex_candidates = ("vertices", "verts", "v", "vertex", "positions", "pos")
+        attr_face_candidates = ("triangles", "faces", "f", "indices", "face")
+        vv = next((getattr(mesh, k) for k in attr_vertex_candidates if hasattr(mesh, k)), None)
+        ff = next((getattr(mesh, k) for k in attr_face_candidates if hasattr(mesh, k)), None)
+        if vv is not None and ff is not None:
+            return vv, ff
+
+        # Wrapped mesh containers (`mesh`, `data`, `value`, etc.)
+        for wrapper_name in ("mesh", "data", "value", "payload", "obj"):
+            if hasattr(mesh, wrapper_name):
+                wrapped = getattr(mesh, wrapper_name)
+                vv, ff = _PointCloudUtils._extract_mesh_components(wrapped)
+                if vv is not None and ff is not None:
+                    return vv, ff
+
+        # Dataclass or object namespace fallback
+        if hasattr(mesh, "__dict__"):
+            vv, ff = pick_from_dict(vars(mesh))
+            if vv is not None and ff is not None:
+                return vv, ff
+
+        return None, None
 
     @staticmethod
     def _to_numpy(value):
@@ -157,8 +189,6 @@ class MeshToPointCloud:
         if self._is_empty_mesh(tri_mesh):
             raise ValueError("Input mesh is empty (no vertices or no triangles), cannot sample point cloud.")
 
-    def convert(self, mesh, sample_points: int, use_poisson_disk: bool):
-        tri_mesh = _PointCloudUtils.to_triangle_mesh(mesh)
         if use_poisson_disk:
             pcd = tri_mesh.sample_points_poisson_disk(number_of_points=sample_points)
         else:
