@@ -4,6 +4,8 @@ from .pointcloud_nodes import (
     PointCloudBoundingBoxSize,
     PointCloudDBSCANLargestCluster,
     PointCloudRANSACFilter,
+    PointCloudToMesh,
+    PointCloudLargestSurfaceAfterAxisPlaneFilter,
 )
 
 NODE_CLASS_MAPPINGS = {
@@ -12,6 +14,8 @@ NODE_CLASS_MAPPINGS = {
     "PointCloudRANSACFilter": PointCloudRANSACFilter,
     "PointCloudDBSCANLargestCluster": PointCloudDBSCANLargestCluster,
     "PointCloudBoundingBoxSize": PointCloudBoundingBoxSize,
+    "PointCloudToMesh": PointCloudToMesh,
+    "PointCloudLargestSurfaceAfterAxisPlaneFilter": PointCloudLargestSurfaceAfterAxisPlaneFilter,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -20,4 +24,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "PointCloudRANSACFilter": "Point Cloud RANSAC Filter",
     "PointCloudDBSCANLargestCluster": "Point Cloud DBSCAN Largest Cluster",
     "PointCloudBoundingBoxSize": "Point Cloud Bounding Box Size",
+    "PointCloudToMesh": "Point Cloud To Mesh",
+    "PointCloudLargestSurfaceAfterAxisPlaneFilter": "Point Cloud Largest Surface After Axis Plane Filter",
 }
