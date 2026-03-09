@@ -39,27 +39,29 @@ class SaveAttributesToExcel:
     CATEGORY = "utils/export"
 
     @staticmethod
-    def _split_label_items(label: str) -> List[str]:
+    def _resolve_label_value(label: str) -> str:
         if label is None:
-            return []
+            return ""
 
         if isinstance(label, (list, tuple)):
-            return [str(item).strip() for item in label if str(item).strip()]
+            items = [str(item).strip() for item in label if str(item).strip()]
+            return items[0] if items else ""
 
         text = str(label).strip()
         if not text:
-            return []
+            return ""
 
         if text.startswith("[") and text.endswith("]"):
             for parser in (json.loads, ast.literal_eval):
                 try:
                     parsed = parser(text)
                     if isinstance(parsed, (list, tuple)):
-                        return [str(item).strip() for item in parsed if str(item).strip()]
+                        items = [str(item).strip() for item in parsed if str(item).strip()]
+                        return items[0] if items else ""
                 except Exception:
                     continue
 
-        return [text]
+        return text
 
 
     @staticmethod
@@ -119,8 +121,8 @@ class SaveAttributesToExcel:
             ws.title = "data"
             ws.append(["label", "material", "length", "width", "height"])
 
-        for label_item in self._split_label_items(label):
-            ws.append([label_item, material, length, width, height])
+        label_value = self._resolve_label_value(label)
+        ws.append([label_value, material, length, width, height])
 
         wb.save(out_path)
 
