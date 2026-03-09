@@ -18,7 +18,7 @@ class SaveAttributesToExcel:
                 "width": ("FLOAT", {"default": 0.0, "step": 0.01}),
                 "height": ("FLOAT", {"default": 0.0, "step": 0.01}),
                 "material": ("STRING", {"default": ""}),
-                "label": ("STRING", {"default": ""}),
+                "labels": ("STRING", {"default": ""}),
             },
             "optional": {
                 "output_dir": (
@@ -125,7 +125,7 @@ class SaveAttributesToExcel:
         width: float,
         height: float,
         material: str,
-        label: str,
+        labels: str,
         output_dir: str = "",
         filename_prefix: str = "attributes",
     ) -> Tuple[str, str, str]:
@@ -149,7 +149,7 @@ class SaveAttributesToExcel:
             ws.title = "data"
             ws.append(["label", "material", "length", "width", "height"])
 
-        label_items = self._normalize_input_list(label)
+        label_items = self._normalize_input_list(labels)
         material_items = self._normalize_input_list(material)
         length_items = self._normalize_input_list(length)
         width_items = self._normalize_input_list(width)
@@ -171,7 +171,7 @@ class SaveAttributesToExcel:
 
         print(
             "输入状态: "
-            f"label={label_items}, material={material_items}, length={length_items}, "
+            f"labels={label_items}, material={material_items}, length={length_items}, "
             f"width={width_items}, height={height_items}, rows_to_write={rows_to_write}"
         )
 
