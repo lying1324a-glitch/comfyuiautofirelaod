@@ -1,5 +1,5 @@
 import os
-from typing import List, Tuple
+from typing import Any, List, Tuple
 import ast
 import json
 
@@ -33,35 +33,63 @@ class SaveAttributesToExcel:
             },
         }
 
-    RETURN_TYPES = ("STRING", "STRING")
-    RETURN_NAMES = ("xlsx_path", "save_hint")
+    RETURN_TYPES = ("STRING", "STRING", "STRING")
+    RETURN_NAMES = ("xlsx_path", "save_hint", "write_status")
     FUNCTION = "save"
     CATEGORY = "utils/export"
 
     @staticmethod
-    def _resolve_label_value(label: str) -> str:
-        if label is None:
-            return ""
-
-        if isinstance(label, (list, tuple)):
-            items = [str(item).strip() for item in label if str(item).strip()]
-            return items[0] if items else ""
-
-        text = str(label).strip()
+    def _parse_list_text(text: str) -> List[str]:
         if not text:
-            return ""
+            return []
 
-        if text.startswith("[") and text.endswith("]"):
+        raw = text.strip()
+        if not raw:
+            return []
+
+        if raw.startswith("[") and raw.endswith("]"):
             for parser in (json.loads, ast.literal_eval):
                 try:
-                    parsed = parser(text)
+                    parsed = parser(raw)
                     if isinstance(parsed, (list, tuple)):
-                        items = [str(item).strip() for item in parsed if str(item).strip()]
-                        return items[0] if items else ""
+                        return [str(item).strip() for item in parsed if str(item).strip()]
                 except Exception:
                     continue
 
-        return text
+        if "\n" in raw:
+            return [part.strip() for part in raw.splitlines() if part.strip()]
+
+        return [raw]
+
+    @classmethod
+    def _normalize_input_list(cls, value: Any) -> List[str]:
+        if value is None:
+            return [""]
+
+        if isinstance(value, (list, tuple)):
+            items = [str(item).strip() for item in value if str(item).strip()]
+            return items if items else [""]
+
+        parsed = cls._parse_list_text(str(value))
+        return parsed if parsed else [""]
+
+    @staticmethod
+    def _expand_to_length(values: List[str], target_len: int) -> List[str]:
+        if target_len <= 0:
+            return []
+        if not values:
+            return [""] * target_len
+        if len(values) >= target_len:
+            return values[:target_len]
+        return values + [values[-1]] * (target_len - len(values))
+
+    @staticmethod
+    def _build_write_status(start_row: int, end_row: int, rows_written: int) -> str:
+        return (
+            f"写入状态: 成功追加 {rows_written} 行，写入行号范围 {start_row}-{end_row}。"
+            if rows_written > 0
+            else "写入状态: 未写入任何数据。"
+        )
 
 
     @staticmethod
@@ -100,7 +128,7 @@ class SaveAttributesToExcel:
         label: str,
         output_dir: str = "",
         filename_prefix: str = "attributes",
-    ) -> Tuple[str, str]:
+    ) -> Tuple[str, str, str]:
         try:
             from openpyxl import Workbook, load_workbook
         except Exception as exc:
@@ -121,11 +149,49 @@ class SaveAttributesToExcel:
             ws.title = "data"
             ws.append(["label", "material", "length", "width", "height"])
 
-        label_value = self._resolve_label_value(label)
-        ws.append([label_value, material, length, width, height])
+        label_items = self._normalize_input_list(label)
+        material_items = self._normalize_input_list(material)
+        length_items = self._normalize_input_list(length)
+        width_items = self._normalize_input_list(width)
+        height_items = self._normalize_input_list(height)
+
+        rows_to_write = max(
+            len(label_items),
+            len(material_items),
+            len(length_items),
+            len(width_items),
+            len(height_items),
+        )
+
+        label_items = self._expand_to_length(label_items, rows_to_write)
+        material_items = self._expand_to_length(material_items, rows_to_write)
+        length_items = self._expand_to_length(length_items, rows_to_write)
+        width_items = self._expand_to_length(width_items, rows_to_write)
+        height_items = self._expand_to_length(height_items, rows_to_write)
+
+        print(
+            "输入状态: "
+            f"label={label_items}, material={material_items}, length={length_items}, "
+            f"width={width_items}, height={height_items}, rows_to_write={rows_to_write}"
+        )
+
+        start_row = ws.max_row + 1
+        for i in range(rows_to_write):
+            ws.append(
+                [
+                    label_items[i],
+                    material_items[i],
+                    length_items[i],
+                    width_items[i],
+                    height_items[i],
+                ]
+            )
+        end_row = ws.max_row
 
         wb.save(out_path)
 
         save_hint = self._build_save_hint(out_path)
+        write_status = self._build_write_status(start_row, end_row, rows_to_write)
         print(save_hint)
-        return out_path, save_hint
+        print(write_status)
+        return out_path, save_hint, write_status
